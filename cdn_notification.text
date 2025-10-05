@@ -1,0 +1,147 @@
+<nav class="navbar-wrapper">
+    <div class="dashboard-title-part">
+        <div class="left">
+            <div class="icon">
+                <button class="sidebar-menu-bar">
+                    <i class="fas fa-exchange-alt"></i>
+                </button>
+            </div>
+            @yield('breadcrumb')
+        </div>
+        <div class="right">
+        
+            <div class="header-notification-wrapper">
+                <button class="notification-icon">
+                    <i class="las la-bell"></i>
+                </button>
+                  <span class="bling-area d-none">
+                    <span class="bling"></span>
+                </span>
+                <div class="notification-wrapper">
+                    <div class="notification-header">
+                        <h5 class="title">{{ __("Notification") }}</h5>
+                    </div>
+                    <ul class="notification-list">
+                         {{-- <div id="notification"></div> --}}
+                            @forelse (get_user_notifications() ?? [] as $notification)
+                            <li>
+                                <div class="thumb">
+                                    <img src="{{ auth()->user()->userImage }}" alt="user">
+                                </div>
+                                <div class="content">
+                                    <div class="title-area" id="notification">
+                                        <h6 class="title">{{ $notification->data['title'] }}</h6>
+                                        <span class="time">{{ $notification->created_at->format('D g.iA') }}</span>
+                                    </div>
+                                    <span class="sub-title">  {{ $notification->data['message'] }} </span>
+                                </div>
+                            </li>
+                            @empty
+                                <li class="py-2 text-gray-500">{{ __("No notifications.") }}</li>
+                            @endforelse
+                       </ul>
+
+                </div>
+            </div>
+            <div class="header-user-wrapper">
+                <div class="header-user-thumb">
+                    <a href="{{ setRoute('driver.profile.index') }}"><img src="{{ auth('driver_gurd')->user()->userImage }}" alt="client"></a>
+                </div>
+            </div>
+        </div>
+    </div>
+</nav>
+
+ 
+<script src="https://js.pusher.com/8.2/pusher.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/laravel-echo@1.15.0/dist/echo.iife.js"></script>
+  <script>
+        const driverId = "{{ auth('driver_gurd')->id() }}";
+        //  Echo initialize
+        window.Pusher = Pusher; 
+        window.Echo = new Echo({
+            broadcaster: 'pusher',
+            key: "{{ $basic_settings->broadcast_config->primary_key }}",
+            cluster: "{{ $basic_settings->broadcast_config->cluster }}",
+            forceTLS: true,
+            authEndpoint: "{{ url('/broadcasting/auth') }}",
+            auth: {
+                headers: {
+                    'X-CSRF-TOKEN': document.querySelector('meta[name=\"csrf-token\"]').getAttribute('content'),
+                },
+            },
+        });
+
+        // Private channel  listen 
+        window.Echo.private(`driver.${driverId}`)
+        .listen('.bid.confirm', (e) => {
+            var d1 = document.getElementById('notification');
+            d1.insertAdjacentHTML('beforeend', '<div><span><i class="fa fa-circle-check"></i>  '+e.message+'</span></div>');
+            console.log('✅ Bid confirmed:', e.message);
+        });
+</script>
+
+=============
+<?php
+
+namespace App\Events;
+
+use Illuminate\Broadcasting\Channel;
+use Illuminate\Broadcasting\InteractsWithSockets;
+use Illuminate\Broadcasting\PresenceChannel;
+use Illuminate\Broadcasting\PrivateChannel;
+use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
+use Illuminate\Foundation\Events\Dispatchable;
+use Illuminate\Queue\SerializesModels;
+use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
+use Illuminate\Support\Facades\Log;
+
+class BidConfirm implements ShouldBroadcastNow
+{
+    use Dispatchable, InteractsWithSockets, SerializesModels;
+
+     public $bid;
+
+    /**
+     * Create a new event instance.
+     */
+    public function __construct($bid)
+    {
+        $this->bid = $bid;
+        Log::info($bid);
+    }
+
+    /**
+     * Write code on Method
+     *
+     * @return response()
+     */
+    public function broadcastOn()
+    {
+        return new PrivateChannel('driver.' . $this->bid->driver_id);
+    }
+
+    /**
+     * Write code on Method
+     *
+     * @return response()
+     */
+    public function broadcastAs()
+    {
+        return 'bid.confirm';
+    }
+
+    /**
+     * Get the data to broadcast.
+     *
+     * @return array
+     */
+    public function broadcastWith(): array
+    {
+       return [
+            'bid_id' => $this->bid->id,
+            'ride_id' => $this->bid->ride_id,
+            'message' => "Your bid for Ride #{$this->bid->ride->ride_request_id} has been confirmed.",
+        ];
+    }
+}
